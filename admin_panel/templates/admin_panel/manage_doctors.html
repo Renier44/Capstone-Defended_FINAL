@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMART SIGHT - Admin Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Body & Sidebar */
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #f0f4f7, #e3f2fd);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+    }
+  
+    .sidebar {
+      width: 250px;
+      background-color: #ffffff;
+      color: #333;
+      padding: 25px 20px;
+      box-shadow: 2px 0 15px rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-radius: 0 15px 15px 0;
+    }
+  
+    /* Logo */
+    .logo {
+      font-size: 26px;
+      font-weight: 800;
+      color: #1E88E5;
+      margin-bottom: 35px;
+      letter-spacing: 1px;
+    }
+  
+    /* Menu Items */
+    .menu-item {
+      display: flex;
+      align-items: center;
+      padding: 14px 15px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      color: #555;
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+  
+    .menu-item i {
+      margin-right: 15px;
+      font-size: 20px;
+    }
+  
+    .menu-item:hover,
+    .menu-item.active {
+      background-color: #E3F2FD;
+      color: #1E88E5;
+      transform: translateX(5px);
+    }
+  
+    /* Profile Section */
+    .profile-section {
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      text-align: center;
+    }
+  
+    .profile-pic {
+      width: 65px;
+      height: 65px;
+      background: linear-gradient(135deg, #1E88E5, #42a5f5);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 26px;
+      font-weight: 700;
+      margin: 0 auto 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+  
+    .profile-name {
+      font-weight: 700;
+      color: #333;
+    }
+  
+    .profile-email {
+      font-size: 14px;
+      color: #999;
+    }
+  
+    .logout-button {
+      background: linear-gradient(135deg, #1E88E5, #42a5f5);
+      color: #fff;
+      text-decoration: none;
+      padding: 12px;
+      border-radius: 12px;
+      margin-top: 20px;
+      display: block;
+      text-align: center;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+  
+    .logout-button:hover {
+      box-shadow: 0 4px 15px rgba(30, 136, 229, 0.4);
+      transform: translateY(-2px);
+    }
+  
+    /* Main Content */
+    .main-content {
+      flex-grow: 1;
+      padding: 40px;
+      overflow-y: auto;
+    }
+  
+    /* Header */
+    .header h1 {
+      font-size: 30px;
+      font-weight: 800;
+      color: #1E88E5;
+      margin-bottom: 25px;
+    }
+  
+    /* Doctor Cards */
+    .doctor-card-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 25px;
+    }
+  
+    .doctor-card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+      padding: 20px 25px;
+      display: flex;
+      align-items: center;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+  
+    .doctor-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.12);
+    }
+  
+    /* Avatar */
+    .doctor-avatar {
+      width: 70px;
+      height: 70px;
+      background: linear-gradient(135deg, #1E88E5, #42a5f5);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 28px;
+      font-weight: 700;
+      margin-right: 20px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+  
+    /* Doctor Info */
+    .doctor-info {
+      flex-grow: 1;
+    }
+  
+    .doctor-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #333;
+    }
+  
+    .doctor-specialty {
+      font-size: 14px;
+      color: #555;
+      margin-top: 5px;
+    }
+  
+    .pediatric-tag {
+      background-color: #E8F5E9;
+      color: #4CAF50;
+      padding: 5px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 8px;
+      display: inline-block;
+    }
+  </style>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body>
+  <div class="sidebar">
+    <div>
+      <div class="logo">SMART SIGHT</div>
+      <div class="menu-items">
+        <a href="{% url 'admin_home' %}" class="menu-item">
+          <i class="fa-solid fa-gauge-high"></i> Dashboard
+        </a>
+        <a href="{% url 'monitor_appointments' %}" class="menu-item">
+          <i class="fa-solid fa-calendar-check"></i> Appointment Monitoring
+        </a>
+        <a href="{% url 'manage_doctors_availability' %}" class="menu-item">
+          <i class="fa-solid fa-clock"></i> Manage Doctor Availability
+        </a>
+        <a href="{% url 'doctor_overview_patients_record' %}" class="menu-item">
+          <i class="fa-solid fa-users"></i> Doctor Overview / Patient Records
+        </a>
+        <a href="{% url 'manage_doctors' %}" class="menu-item active">
+          <i class="fa-solid fa-user-doctor"></i> Manage Doctors
+        </a>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-pic">A</div>
+      <div class="profile-name">Admin</div>
+      <div class="profile-email">admin@gmail.com</div>
+      <a href="{% url 'admin_logout' %}" class="logout-button">
+        <i class="fa-solid fa-right-from-bracket"></i> Logout
+      </a>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="header">
+      <h1>List of Doctors</h1>
+    </div>
+
+    <div class="doctor-card-container">
+      {% for doctor in doctors %}
+      <div class="doctor-card">
+        <div class="doctor-avatar">{{ doctor.user.first_name|default:"?"|slice:"1" }}{{
+          doctor.user.last_name|default:"?"|slice:"1" }}</div>
+        <div class="doctor-info">
+          <div class="doctor-name">Dr. {{ doctor.user.get_full_name }}</div>
+          <div class="doctor-specialty">{{ doctor.specialty }}</div>
+          {% if doctor.is_pediatric %}
+          <div class="pediatric-tag">Pediatrician</div>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <p>No doctors registered yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+
+</html>
+
+
+ <!-- STOP -->
