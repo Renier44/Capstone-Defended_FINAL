@@ -244,8 +244,8 @@ def doctor_overview_patients_record(request):
     """
     patients = Appointment.objects.filter(
         archive=False,
-        status="Scheduled"  # ✅ Only scheduled appointments
-    ).order_by("patient_last_name")
+        status="Scheduled"
+    ).order_by("appointment_datetime")  # SORT BY ACTUAL BOOKED TIME
 
     return render(
         request,
@@ -254,16 +254,18 @@ def doctor_overview_patients_record(request):
     )
 
 
-
 @login_required
 def patient_details(request, id):
     """
-    JSON Endpoint for the 'View Details' modal.
-    Strictly sends 'is_ai_screening' so the frontend can adjust the label.
+    JSON for modal — now using EXACT date & time format
+    consistent with 'Monitoring Scheduled Appointments'.
     """
     try:
         patient = get_object_or_404(Appointment, id=id)
         
+        # FIXED: exact format used in Monitoring: Month Day, Year - HH:MM AM/PM
+        formatted_time = patient.appointment_datetime.strftime("%B %d, %Y - %I:%M %p")
+
         data = {
             "id": patient.id,
             "first_name": patient.patient_first_name,
@@ -272,23 +274,20 @@ def patient_details(request, id):
             "age": patient.patient_age,
             "gender": patient.patient_gender,
             "booking_for": patient.booking_for,
-            "doctor": patient.doctor.user.get_full_name() if patient.doctor else "Unassigned",
-            
-            # Format date clearly
-            "appointment_datetime": patient.appointment_datetime.strftime("%B %d, %Y %I:%M %p"),
+            "doctor": (
+                patient.doctor.user.get_full_name()
+                if patient.doctor else "Unassigned"
+            ),
+
+            "appointment_datetime": formatted_time,
             "status": patient.status,
 
-            # [PROFESSOR FIX] STRICT DATA PASSING
-            # 1. Pass the flag
-            "is_ai_screening": patient.is_ai_screening, 
-            
-            # 2. Pass the result (if AI)
-            "preliminary_result": patient.preliminary_result if patient.preliminary_result else "Pending",
-            
-            # 3. Pass the reason (if Standard)
-            "reason": patient.reason if patient.reason else "None",
+            "is_ai_screening": patient.is_ai_screening,
+            "preliminary_result": patient.preliminary_result or "Pending",
+            "reason": patient.reason or "None",
         }
         return JsonResponse(data)
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
@@ -1100,20 +1099,44 @@ class MarkNotificationReadAPIView(APIView):
 def get_patient_details(request, patient_id):
     appointment = get_object_or_404(Appointment, pk=patient_id)
 
-    # Ensure datetime is converted to local timezone before formatting
+    # Convert to local timezone (PH Time)
     local_dt = timezone.localtime(appointment.appointment_datetime)
+
+    # AI Screening logic
+    if appointment.is_ai_screening:
+        reason_label = "Preliminary Result"
+        reason_value = appointment.preliminary_result or "Pending AI Result"
+    else:
+        reason_label = "Reason"
+        reason_value = appointment.reason or "None"
 
     data = {
         "first_name": appointment.patient_first_name,
         "last_name": appointment.patient_last_name,
-        "email": appointment.patient_email if hasattr(appointment, "patient_email") else "No email provided",
+        "email": appointment.patient_email or "No email provided",
         "age": appointment.patient_age,
         "gender": appointment.patient_gender,
-        "reason": appointment.reason,
+
+        # Dynamic field depending on AI/Standard
+        "reason_label": reason_label,
+        "reason": reason_value,
+
         "booking_for": appointment.booking_for,
-        "doctor": appointment.doctor.user.get_full_name() if appointment.doctor and appointment.doctor.user else "TBD",
-        "appointment_datetime": local_dt.strftime("%B %d, %Y %I:%M %p"),  # ✅ Local timezone & proper format
+
+        # Doctor name fallback
+        "doctor": (
+            appointment.doctor.user.get_full_name()
+            if appointment.doctor and appointment.doctor.user
+            else "Unassigned"
+        ),
+
+        # FIXED: Accurate datetime (same format as monitoring)
+        "appointment_datetime": local_dt.strftime("%B %d, %Y - %I:%M %p"),
+
         "status": appointment.status,
+
+        # Provide flags for frontend
+        "is_ai_screening": appointment.is_ai_screening,
     }
 
     return JsonResponse(data)

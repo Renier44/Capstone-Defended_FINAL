@@ -236,6 +236,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Doctor Overview / Patients Record</h2>
+
     <div class="input-group search-input-group">
         <input type="text" id="searchInput" class="form-control" placeholder="Search">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -255,46 +256,50 @@
                 <th>Archive</th>
             </tr>
         </thead>
+
         <tbody>
             {% for patient in patients %}
-<tr>
-    <td>{{ patient.patient_last_name }}</td>
-    <td>{{ patient.patient_first_name }}</td>
-    <td>{{ patient.patient_email|default:"No email" }}</td>
-    <td>{{ patient.patient_age }}</td>
-    <td>{{ patient.appointment_datetime|date:"F d, Y P" }}</td>
-    <td>
-        <button class="view-details-btn" data-id="{{ patient.id }}">
-            View Details
-        </button>
-    </td>
-    <td>
-        <button class="archive-btn" data-id="{{ patient.id }}">
-            <i class="bi bi-download"></i>
-        </button>
-    </td>
-</tr>
-{% empty %}
-<tr>
-    <td colspan="7" class="text-center">No patient records found.</td>
-</tr>
-{% endfor %}
+            <tr>
+                <td>{{ patient.patient_last_name }}</td>
+                <td>{{ patient.patient_first_name }}</td>
+                <td>{{ patient.patient_email|default:"No email" }}</td>
+                <td>{{ patient.patient_age }}</td>
 
+                <!-- FIXED: Accurate date & time consistent with Monitoring -->
+                <td>
+                    {{ patient.appointment_datetime|date:"F d, Y - h:i A" }}
+                </td>
+
+                <td>
+                    <button class="view-details-btn" data-id="{{ patient.id }}">
+                        View Details
+                    </button>
+                </td>
+
+                <td>
+                    <button class="archive-btn" data-id="{{ patient.id }}">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center">No patient records found.</td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
 </div>
 
-<!-- 🔄 Global Loading Spinner -->
-<div id="loadingSpinner">
-    <div class="spinner"></div>
-</div>
+<!-- GLOBAL SPINNER -->
+<div id="loadingSpinner"><div class="spinner"></div></div>
 
-<!-- Modal Loading Spinner for Details -->
+<!-- MODAL SPINNER -->
 <div id="modalLoadingSpinner" class="modal-overlay">
     <div class="spinner"></div>
 </div>
 
-<!-- Patient Details Modal -->
+<!-- PATIENT DETAILS MODAL -->
 <div id="detailsModal" class="modal-overlay">
     <div class="modal-box">
         <h3>Patient Details</h3>
@@ -303,7 +308,7 @@
     </div>
 </div>
 
-<!-- Archive Confirmation Modal -->
+<!-- ARCHIVE CONFIRMATION -->
 <div id="archiveModal" class="modal-overlay">
     <div class="modal-box">
         <h3>Archive Confirmation</h3>
@@ -315,7 +320,7 @@
     </div>
 </div>
 
-<!-- Archive Success Modal -->
+<!-- SUCCESS MESSAGE -->
 <div id="messageModal" class="modal-overlay">
     <div class="modal-box">
         <h3 id="messageTitle"></h3>
@@ -328,111 +333,119 @@
 
 {% block extra_js %}
 <script>
-    const modal = document.getElementById('detailsModal');
-    const modalContent = document.getElementById('modalContent');
-    const closeModalBtn = modal.querySelector('.close-modal-btn');
-    const spinner = document.getElementById('loadingSpinner');
-    const modalSpinner = document.getElementById('modalLoadingSpinner');
+const modal = document.getElementById("detailsModal");
+const modalContent = document.getElementById("modalContent");
+const closeModalBtn = modal.querySelector(".close-modal-btn");
+const spinner = document.getElementById("loadingSpinner");
+const modalSpinner = document.getElementById("modalLoadingSpinner");
 
-    // ✅ View Details with Loading Spinner
-    // ... inside your script tag ...
+/* -------------------------------
+   VIEW DETAILS
+---------------------------------- */
+document.querySelectorAll(".view-details-btn").forEach(button => {
+    button.addEventListener("click", function () {
+        const patientId = this.dataset.id;
+        modalContent.innerHTML = "";
+        modalSpinner.style.display = "flex";
 
-    // ✅ View Details with Loading Spinner
-    document.querySelectorAll('.view-details-btn').forEach(button => {
-        button.addEventListener('click', function () {
-            const patientId = this.dataset.id;
-            modalContent.innerHTML = ''; // Clear previous content
-            modalSpinner.style.display = 'flex'; // Show modal loading spinner
+        fetch(`/patient-details/${patientId}/`)
+            .then(response => response.json())
+            .then(data => {
+                modalSpinner.style.display = "none";
 
-            fetch(`/patient-details/${patientId}/`)
-                .then(response => response.json())
-                .then(data => {
-                    modalSpinner.style.display = 'none';
+                let reasonLabel = data.is_ai_screening ? "Preliminary Result" : "Reason";
+                let reasonValue = data.is_ai_screening
+                    ? data.preliminary_result
+                    : data.reason;
 
-                    // [PROFESSOR FIX] Dynamic Logic for AI vs Standard
-                    let reasonLabel = 'Reason';
-                    let reasonContent = data.reason || 'None';
-
-                    if (data.is_ai_screening) {
-                        reasonLabel = 'Preliminary Result';
-                        reasonContent = data.preliminary_result || 'Pending AI Result';
-                    }
-
-                    modalContent.innerHTML = `
-                        <p><strong>Name:</strong> ${data.first_name} ${data.last_name}</p>
-                        <p><strong>Email:</strong> ${data.email || 'No email provided'}</p>
-                        <p><strong>Age:</strong> ${data.age}</p>
-                        <p><strong>Gender:</strong> ${data.gender}</p>
-                        
-                        <p><strong>${reasonLabel}:</strong> ${reasonContent}</p>
-                        
-                        <p><strong>Booking For:</strong> ${data.booking_for}</p>
-                        <p><strong>Doctor:</strong> ${data.doctor}</p>
-                        <p><strong>Appointment:</strong> ${data.appointment_datetime}</p>
-                        <p><strong>Status:</strong> ${data.status}</p>`;
-                    
-                    modal.style.display = 'flex';
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    modalSpinner.style.display = 'none';
-                    alert('Could not fetch patient details.');
-                });
-        });
+                modalContent.innerHTML = `
+                    <p><strong>Name:</strong> ${data.first_name} ${data.last_name}</p>
+                    <p><strong>Email:</strong> ${data.email || "No email provided"}</p>
+                    <p><strong>Age:</strong> ${data.age}</p>
+                    <p><strong>Gender:</strong> ${data.gender}</p>
+                    <p><strong>${reasonLabel}:</strong> ${reasonValue}</p>
+                    <p><strong>Booking For:</strong> ${data.booking_for}</p>
+                    <p><strong>Doctor:</strong> ${data.doctor}</p>
+                    <p><strong>Appointment:</strong> ${data.appointment_datetime}</p>
+                    <p><strong>Status:</strong> ${data.status}</p>
+                `;
+                modal.style.display = "flex";
+            })
+            .catch(err => {
+                modalSpinner.style.display = "none";
+                alert("Unable to load details.");
+            });
     });
+});
 
-// ... rest of your code ...
+closeModalBtn.addEventListener("click", () => {
+    modal.style.display = "none";
+});
 
-    closeModalBtn.addEventListener('click', () => modal.style.display = 'none');
+/* -------------------------------
+   ARCHIVE LOGIC
+---------------------------------- */
+const archiveModal = document.getElementById("archiveModal");
+const confirmBtn = document.getElementById("confirmArchive");
+const cancelBtn = document.getElementById("cancelArchive");
+const messageModal = document.getElementById("messageModal");
+const messageTitle = document.getElementById("messageTitle");
+const messageText = document.getElementById("messageText");
+const closeMessage = document.getElementById("closeMessage");
 
-    // ✅ Archive logic
-    const archiveModal = document.getElementById('archiveModal');
-    const confirmBtn = document.getElementById('confirmArchive');
-    const cancelBtn = document.getElementById('cancelArchive');
-    const messageModal = document.getElementById('messageModal');
-    const messageTitle = document.getElementById('messageTitle');
-    const messageText = document.getElementById('messageText');
-    const closeMessage = document.getElementById('closeMessage');
-    let currentPatientId, currentRow;
+let currentPatientId = null;
+let currentRow = null;
 
-    document.getElementById('patientsTable').addEventListener('click', e => {
-        if (e.target.closest('.archive-btn')) {
-            currentPatientId = e.target.closest('.archive-btn').dataset.id;
-            currentRow = e.target.closest('tr');
-            archiveModal.style.display = 'flex';
+document.getElementById("patientsTable").addEventListener("click", e => {
+    const btn = e.target.closest(".archive-btn");
+    if (!btn) return;
+
+    currentPatientId = btn.dataset.id;
+    currentRow = btn.closest("tr");
+    archiveModal.style.display = "flex";
+});
+
+confirmBtn.addEventListener("click", () => {
+    const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]").value;
+
+    archiveModal.style.display = "none";
+    spinner.style.display = "flex";
+
+    fetch("{% url 'archive_patient' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-CSRFToken": csrfToken
+        },
+        body: `id=${currentPatientId}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        spinner.style.display = "none";
+
+        messageTitle.textContent = data.success ? "Archived Successfully" : "Error";
+        messageText.textContent = data.success ? data.message : data.error;
+
+        messageModal.style.display = "flex";
+
+        if (data.success) {
+            currentRow.remove();
         }
+    })
+    .catch(() => {
+        spinner.style.display = "none";
+        messageTitle.textContent = "Error";
+        messageText.textContent = "Something went wrong during archiving.";
+        messageModal.style.display = "flex";
     });
+});
 
-    confirmBtn.addEventListener('click', () => {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        archiveModal.style.display = 'none';
-        spinner.style.display = 'flex';
+cancelBtn.addEventListener("click", () => {
+    archiveModal.style.display = "none";
+});
 
-        fetch('{% url "archive_patient" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': csrfToken
-            },
-            body: `id=${currentPatientId}`
-        })
-        .then(res => res.json())
-        .then(data => {
-            spinner.style.display = 'none';
-            messageTitle.textContent = data.success ? 'Archived Successfully' : 'Error';
-            messageText.textContent = data.success ? data.message : data.error;
-            messageModal.style.display = 'flex';
-            if (data.success) currentRow.remove();
-        })
-        .catch(() => {
-            spinner.style.display = 'none';
-            messageTitle.textContent = 'Error';
-            messageText.textContent = 'An error occurred while archiving.';
-            messageModal.style.display = 'flex';
-        });
-    });
-
-    cancelBtn.addEventListener('click', () => archiveModal.style.display = 'none');
-    closeMessage.addEventListener('click', () => messageModal.style.display = 'none');
+closeMessage.addEventListener("click", () => {
+    messageModal.style.display = "none";
+});
 </script>
 {% endblock %}
