@@ -205,3 +205,6 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rosmillago@gmail.com')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'qblo qmcm owjj thnl')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+
