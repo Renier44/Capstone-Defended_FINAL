@@ -13,7 +13,14 @@ DEBUG = True
 # -------------------
 # Allowed Hosts
 # -------------------
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "192.168.1.10",
+    "populationless-accomplishedly-merri.ngrok-free.dev",
+    # ✅ ADD THIS LINE for your Render deployment:
+    "capstone-defended-final.onrender.com",
+]
 
 # ✅ Dynamically add ngrok host if set
 NGROK_URL = os.environ.get("NGROK_URL")
