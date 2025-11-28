@@ -18,6 +18,8 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "192.168.1.10",
     "populationless-accomplishedly-merri.ngrok-free.dev",
+    "capstone-defended-final.onrender.com",  # ← ADD THIS
+
 ]
 
 # ✅ Dynamically add ngrok host if set
