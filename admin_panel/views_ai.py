@@ -2,198 +2,190 @@ import os
 import io
 import logging
 import numpy as np
-import cv2  # Must install: pip install opencv-python-headless
 from PIL import Image
 from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
 from tensorflow.lite.python.interpreter import Interpreter
+import tensorflow as tf
 
 from .models import EyeScreening, Appointment
+
+# Try loading OpenCV (optional)
+try:
+    import cv2
+    OPENCV_AVAILABLE = True
+except Exception:
+    OPENCV_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------
-# 🔧 MODEL CONFIGURATION (V12 RESNET50)
+# 🔧 SMARTSIGHT V12 CONFIG
 # -----------------------------------------------------------
-LABELS = ["Strabismus", "Strabismus-Free"] 
+LABELS = ["Strabismus", "Strabismus-Free"]  # Index 0 sick, 1 healthy
 INPUT_SIZE = (224, 224)
-CONFIDENCE_THRESHOLD = 0.60 
 
-# Path to your V12 Model
+# SmartSight V12 is VERY accurate (94% accuracy)
+CONFIDENCE_THRESHOLD = 0.70  # slightly higher than V11
+
 MODEL_PATH = os.path.join(
     settings.BASE_DIR, "admin_panel", "ai_model", "smartsight_resnet50_v12.tflite"
 )
 
-# Load TFLite Interpreter
-try:
-    interpreter = Interpreter(model_path=MODEL_PATH)
-    interpreter.allocate_tensors()
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    print("✅ V12 Model Loaded Successfully")
-except Exception as e:
-    logger.error(f"❌ Failed to load model: {e}")
+if not os.path.exists(MODEL_PATH):
+    logger.error(f"❌ V12 Model NOT found at {MODEL_PATH}")
 
-# Load Haar Cascade for Eye Detection (Built-in to OpenCV)
-HAAR_EYE_PATH = cv2.data.haarcascades + "haarcascade_eye.xml"
+# Load TFLite model once at server start
+interpreter = Interpreter(model_path=MODEL_PATH)
+interpreter.allocate_tensors()
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
 # -----------------------------------------------------------
-# 🕵️ STRICT VALIDATION LOGIC
+# 👁️ Optional OpenCV Eye Detection
 # -----------------------------------------------------------
-def validate_eye_strict(image_bytes):
-    """
-    Returns (True, "") if valid.
-    Returns (False, "Reason") if invalid.
-    Strictly checks for human eyes and distance.
-    """
+HAAR_EYE_PATH = None
+if OPENCV_AVAILABLE:
     try:
-        # 1. Convert to OpenCV format
-        pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        img_array = np.array(pil_image)
-        # Convert RGB (PIL) to BGR (OpenCV)
-        img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-        
-        img_h, img_w = gray.shape
+        HAAR_EYE_PATH = cv2.data.haarcascades + "haarcascade_eye.xml"
+    except Exception:
+        pass
 
-        # 2. Detect Eyes
-        eye_cascade = cv2.CascadeClassifier(HAAR_EYE_PATH)
-        # scaleFactor=1.1, minNeighbors=5 (High strictness to avoid false positives like furniture)
-        eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-
-        # CHECK 1: Are there any eyes?
-        if len(eyes) == 0:
-            return False, "⚠️ No human eyes detected. Please ensure the photo is clear and contains eyes."
-
-        # CHECK 2: Distance Check (Is it close up?)
-        # We calculate the width of the largest eye relative to the image width.
-        max_eye_width = 0
-        for (x, y, w, h) in eyes:
-            if w > max_eye_width:
-                max_eye_width = w
-        
-        # Calculate ratio: Eye Width / Image Width
-        # If the eye is smaller than 10% of the image width, the person is too far away.
-        eye_ratio = max_eye_width / img_w
-        
-        if eye_ratio < 0.10: 
-            return False, "⚠️ Too far away! Please move the camera CLOSER to your eyes."
-
-        return True, ""
-
+def detect_eyes_with_opencv(image_bytes, min_eyes=2):
+    if not OPENCV_AVAILABLE or not HAAR_EYE_PATH:
+        return True
+    try:
+        pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img = np.array(pil)[:, :, ::-1].copy()  # RGB → BGR
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        eyes = cv2.CascadeClassifier(HAAR_EYE_PATH).detectMultiScale(
+            gray, 1.1, 5, minSize=(30, 30)
+        )
+        return len(eyes) >= min_eyes
     except Exception as e:
-        logger.error(f"Validation Error: {e}")
-        # If OpenCV fails unexpectedly, we fail safe (or you can choose to pass)
-        return False, "Could not validate image content."
+        logger.warning(f"Eye detection error: {e}")
+        return True
 
-def preprocess_for_v12(image_bytes):
+# -----------------------------------------------------------
+# 🧠 SMARTSIGHT V12 PREPROCESSING
+# -----------------------------------------------------------
+def preprocess_image_v12(image_bytes):
     """
-    Preprocessing specifically for ResNet50 (Caffe Mode):
-    1. Resize to 224x224
-    2. Convert RGB -> BGR
-    3. Subtract Mean [103.939, 116.779, 123.68]
+    SmartSight V12 uses ResNet50 (caffe-style):
+    - Convert RGB → BGR
+    - Subtract ImageNet mean: [103.939, 116.779, 123.68]
     """
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img = img.resize(INPUT_SIZE, Image.BILINEAR)
-    
-    img_array = np.array(img).astype(np.float32)
+    arr = np.asarray(img).astype(np.float32)
 
-    # Convert RGB to BGR
-    img_array = img_array[..., ::-1]
+    # Apply EXACT preprocessing used in training
+    arr = tf.keras.applications.resnet50.preprocess_input(arr)
 
-    # Mean Subtraction (ImageNet)
-    mean = [103.939, 116.779, 123.68]
-    img_array[..., 0] -= mean[0]
-    img_array[..., 1] -= mean[1]
-    img_array[..., 2] -= mean[2]
+    # Add batch dimension
+    arr = np.expand_dims(arr, axis=0)
+    return arr
 
-    # Add batch dimension: (1, 224, 224, 3)
-    img_array = np.expand_dims(img_array, axis=0)
-    return img_array
-
-def softmax(x):
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum()
 
 # -----------------------------------------------------------
-# 🚀 API ENDPOINT
+# 🚀 MAIN ENDPOINT — SMARTSIGHT V12 CLASSIFIER
 # -----------------------------------------------------------
 @csrf_exempt
 def classify_eye_image(request):
     if request.method != "POST":
-        return JsonResponse({"status": "error", "message": "Only POST allowed"}, status=405)
+        return JsonResponse({"status": "error", "message": "Only POST allowed."}, status=405)
 
     if "image" not in request.FILES:
-        return JsonResponse({"status": "error", "message": "No image uploaded"}, status=400)
+        return JsonResponse({"status": "error", "message": "No image provided."}, status=400)
 
     try:
         image_file = request.FILES["image"]
         image_bytes = image_file.read()
 
-        # 1. STRICT VALIDATION
-        # This will block: Dogs, Chairs, Full Body shots, Far away shots
-        is_valid, error_message = validate_eye_strict(image_bytes)
-        
-        if not is_valid:
+        # Validate image
+        try:
+            Image.open(io.BytesIO(image_bytes)).verify()
+        except Exception:
+            return JsonResponse({"status": "error", "message": "Invalid or corrupted image."}, status=400)
+
+        # Optional Eye Detection
+        if not detect_eyes_with_opencv(image_bytes):
             return JsonResponse({
                 "status": "error",
-                "message": error_message
+                "message": "Eyes not clearly detected. Ensure bright lighting and face the camera directly."
             }, status=400)
 
-        # 2. PREPROCESSING (V12 Specific)
-        input_data = preprocess_for_v12(image_bytes)
+        # Preprocess with V12 rules
+        input_data = preprocess_image_v12(image_bytes)
 
-        # 3. INFERENCE
+        # Run prediction
         interpreter.set_tensor(input_details[0]["index"], input_data)
         interpreter.invoke()
-        raw_output = interpreter.get_tensor(output_details[0]["index"])
+        raw_output = interpreter.get_tensor(output_details[0]["index"])[0]
 
-        # 4. INTERPRETATION
-        probs = softmax(raw_output[0])
+        # Ensure Softmax
+        probs = tf.nn.softmax(raw_output).numpy()
+
         predicted_idx = int(np.argmax(probs))
         confidence = float(probs[predicted_idx])
-        diagnosis = LABELS[predicted_idx]
+        predicted_label = LABELS[predicted_idx]
 
-        # 5. RESULT FORMATTING
+        # Confidence check
+        if confidence < CONFIDENCE_THRESHOLD:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Inconclusive result ({confidence * 100:.1f}%). Please upload a clearer image.",
+                "confidence": round(confidence * 100, 2),
+            }, status=400)
+
         probs_percent = {
             "Strabismus": round(float(probs[0]) * 100, 2),
-            "Normal": round(float(probs[1]) * 100, 2)
+            "Normal": round(float(probs[1]) * 100, 2),
         }
 
-        # Save to DB logic (Simplified for brevity, keep your existing save logic)
-        user_id = request.POST.get("user_id")
-        user = User.objects.filter(id=user_id).first() if user_id else None
-        
+        # User linkage
+        user = None
+        user_id = request.POST.get("user_id") or request.POST.get("userId")
+        if user_id:
+            user = User.objects.filter(id=user_id).first()
+
+        # Save screening result
         screening = EyeScreening.objects.create(
             user=user,
             image=image_file,
-            result=diagnosis,
+            result=predicted_label,
             confidence=confidence * 100,
-            remarks=f"V12 Diagnosis: {diagnosis}"
+            remarks=f"SmartSight V12: {predicted_label}"
         )
-        
+
+        # If user exists, automatically create appointment
         if user:
-             Appointment.objects.create(
+            Appointment.objects.create(
                 user=user,
-                reason="AI Screening Follow-up",
-                preliminary_result=diagnosis,
+                reason="AI Eye Screening Follow-up",
+                preliminary_result=predicted_label,
                 is_ai_screening=True,
                 archive=False
             )
 
-        message = "You are Strabismus-Free!" if diagnosis == "Strabismus-Free" else "Potential Strabismus Detected."
+        message = (
+            "You are Strabismus-Free!"
+            if predicted_label == "Strabismus-Free"
+            else "Potential Strabismus Detected (Crossed Eyes)."
+        )
 
         return JsonResponse({
             "status": "success",
-            "diagnosis": diagnosis,
+            "diagnosis": predicted_label,
             "confidence": round(confidence * 100, 2),
             "probabilities": probs_percent,
+            "screening_id": screening.id,
             "message": message,
-            "image_id": screening.id
-        })
+            "proceed_to_booking": True
+        }, status=200)
 
     except Exception as e:
-        logger.exception("Error processing image")
+        logger.exception("V12 Screening Error")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
