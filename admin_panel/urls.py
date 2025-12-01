@@ -99,6 +99,8 @@ urlpatterns = [
     path('profile/update/', views.admin_update_profile, name='admin_update_profile'),
     path('profile/update/image/', views.admin_update_profile_image, name='admin_update_profile_image'), # For image upload
 
+    
+
 ]
 
 # ✅ KINI ANG PINAKA-IMPORTANTE NGA FIX. I-SERVE ANG MEDIA FILES SA DEV MODE.

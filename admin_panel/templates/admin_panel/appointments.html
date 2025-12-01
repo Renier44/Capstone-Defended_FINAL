@@ -279,7 +279,21 @@
               <td>{{ appt.booking_for }}</td>
               <td>{{ appt.patient_last_name }}</td>
               <td>{{ appt.patient_first_name }}</td>
-              <td>{{ appt.patient_email|default:"No email" }}</td>
+              <td>
+                {% if appt.patient_email %}
+                  <!-- Default mail client -->
+                  <a href="mailto:{{ appt.patient_email }}" style="color:#1565c0; text-decoration:underline;" title="Open default email client">
+                    {{ appt.patient_email }}
+                  </a>
+                  <!-- Optional: Gmail web compose -->
+                  <a href="https://mail.google.com/mail/?view=cm&to={{ appt.patient_email }}" target="_blank" style="margin-left:5px; color:#1565c0; font-size:0.9em;" title="Compose in Gmail">
+                    <i class="bi bi-envelope"></i>
+                  </a>
+                {% else %}
+                  No email
+                {% endif %}
+              </td>
+
               <td>{{ appt.patient_gender }}</td>
               <td>{{ appt.patient_age }}</td>
               

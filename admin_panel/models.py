@@ -216,3 +216,5 @@ class AdminProfile(models.Model):
 
     def __str__(self):
         return f"Admin Profile for {self.user.username}"
+
+

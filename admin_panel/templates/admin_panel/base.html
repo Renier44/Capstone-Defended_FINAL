@@ -180,6 +180,9 @@
             {% endif %}
         </a>
 
+
+        
+
         <a href="{% url 'doctor_overview_patients_record' %}" 
            class="menu-item {% if request.resolver_match.url_name == 'doctor_overview_patients_record' %}active{% endif %}">
             <i class="bi bi-file-earmark-person"></i> Doctor Overview
