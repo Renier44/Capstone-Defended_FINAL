@@ -135,6 +135,50 @@ def admin_register(request):
 
 
 
+#ADDED FOR DOCTORS#
+
+import datetime
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+
+# --- DRF and API Imports ---
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from django.http import JsonResponse
+# Assuming these models and serializers exist in your app structure
+# Replace these imports with your actual model and serializer paths
+from .models import Notification # Placeholder import
+from .serializers import NotificationSerializer # Placeholder import
+
+
+# =======================================================
+# WEB ADMIN PANEL VIEWS (Excerpts for context)
+# =======================================================
+
+@login_required
+def manage_doctors_hub_view(request):
+    """Renders the Doctor Management Hub (manage_doctors.html)."""
+    return render(request, 'admin_panel/manage_doctors.html')
+
+
+@login_required
+def add_doctor(request):
+    """
+    Renders the form to add a new doctor (add_doctor_form.html).
+    """
+    context = {
+        'page_title': 'Add New Doctor Profile',
+    }
+    return render(request, 'admin_panel/add_doctor_form.html', context)
+    
+# ... (Other Web Views like admin_login, monitor_appointments, etc.)
+
+
+
+
 
 
 @login_required
@@ -950,7 +994,7 @@ class CreateAppointmentAPIView(APIView):
                 another_booked_today = Appointment.objects.filter(booker=request.user, booking_for='another', created_at__date=today).count()
 
                 if total_booked_today >= 2:
-                    return Response({"success": False, "error": "You can only make 2 appointments per day — 1 for yourself and 1 for another."}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"success": False, "error": "You can only make 2 appointments per day — 1 for yourself and 1 for another person."}, status=status.HTTP_400_BAD_REQUEST)
 
                 if booking_for == "yourself" and yourself_booked_today >= 1:
                     return Response({"success": False, "error": "You already made an appointment for yourself today."}, status=status.HTTP_400_BAD_REQUEST)

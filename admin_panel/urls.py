@@ -23,7 +23,7 @@ from admin_panel.views import (
     RegisterPushTokenAPIView,
     DeleteAppointmentAPIView,
     UpdateProfileAPIView,
-    NotificationListAPIView,
+    NotificationListAPIView,  # add this import
     MarkNotificationReadAPIView,
     NotificationDetailAPIView,
     NotificationMarkReadView
@@ -60,6 +60,8 @@ urlpatterns = [
     path('patients/archive/', views.archive_patient, name='archive_patient'),
     path('manage-doctors-availability/set-availability/', views.set_doctor_availability, name='set_doctor_availability'),
     path('patient-details/<int:patient_id>/', views.get_patient_details, name='get_patient_details'),
+    path('manage-doctors-hub/', views.manage_doctors_hub_view, name='manage_doctors'),
+    path('add-doctor/', views.add_doctor, name='add_doctor'), # <-- ADDED THIS MISSING ENTRY
 
     # --- API ENDPOINTS (for mobile app) ---
     path('api/register/', RegisterView.as_view(), name='api-register'),

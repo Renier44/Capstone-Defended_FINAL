@@ -77,7 +77,7 @@ class Appointment(models.Model):
 
     BOOKING_FOR_CHOICES = (
         ('yourself', 'Yourself'),
-        ('another', 'Another Person'),
+        ('another', 'Another'),
     )
 
     REASON_CHOICES = (
