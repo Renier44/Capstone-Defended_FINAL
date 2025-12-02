@@ -70,7 +70,6 @@ class DoctorAvailabilitySerializer(serializers.ModelSerializer):
 from rest_framework import serializers
 from django.utils import timezone
 from .models import Appointment
-
 class AppointmentSerializer(serializers.ModelSerializer):
     doctor_name = serializers.SerializerMethodField()
     appointment_datetime_str = serializers.SerializerMethodField()
@@ -171,8 +170,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
         data['appointment_datetime'] = parsed_dt
         data.pop('appointment_datetime_str', None)
         return data
-
-
 
 # --- NOTIFICATION SERIALIZER (NEW) ---
 class NotificationSerializer(serializers.ModelSerializer):
