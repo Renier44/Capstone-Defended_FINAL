@@ -956,14 +956,14 @@ class AppointmentGenderChoicesAPIView(APIView):
         gender_choices = [choice[0] for choice in Appointment.GENDER_CHOICES]
         return Response(gender_choices, status=status.HTTP_200_OK)
 
-
 class AppointmentBookingForChoicesAPIView(APIView):
     """
     API endpoint to list valid 'booking_for' choices for appointments.
     """
-    permission_classes = [AllowAny]  # allow access without authentication
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
+        # This will now return ['myself', 'another']
         booking_for_choices = [choice[0] for choice in Appointment.BOOKING_FOR_CHOICES]
         return Response(booking_for_choices, status=status.HTTP_200_OK)
 
@@ -974,6 +974,10 @@ class CreateAppointmentAPIView(APIView):
     permission_classes = []
 
     def post(self, request):
+        # Temporarily use request.data for is_ai_screening check before serializer validation
+        # as it is not included in the standard field list if set to default True.
+        is_ai_screening_data = request.data.get("is_ai_screening", False)
+        
         serializer = AppointmentSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({"success": False, "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
@@ -985,26 +989,30 @@ class CreateAppointmentAPIView(APIView):
                 if not serializer.validated_data.get("patient_email"):
                     serializer.validated_data["patient_email"] = request.user.email
                     
-
                 # ✅ Booking limit per day
                 today = timezone.localdate()
                 booking_for = serializer.validated_data.get("booking_for")
                 total_booked_today = Appointment.objects.filter(booker=request.user, created_at__date=today).count()
-                yourself_booked_today = Appointment.objects.filter(booker=request.user, booking_for='yourself', created_at__date=today).count()
+                
+                # 👇 CHANGED: Filter for 'myself'
+                myself_booked_today = Appointment.objects.filter(booker=request.user, booking_for='myself', created_at__date=today).count()
+                
                 another_booked_today = Appointment.objects.filter(booker=request.user, booking_for='another', created_at__date=today).count()
 
+                # Note: The error message below should also be updated to "myself" if desired.
                 if total_booked_today >= 2:
-                    return Response({"success": False, "error": "You can only make 2 appointments per day — 1 for yourself and 1 for another person."}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"success": False, "error": "You can only make 2 appointments per day — 1 for myself and 1 for another person."}, status=status.HTTP_400_BAD_REQUEST)
 
-                if booking_for == "yourself" and yourself_booked_today >= 1:
-                    return Response({"success": False, "error": "You already made an appointment for yourself today."}, status=status.HTTP_400_BAD_REQUEST)
+                # 👇 CHANGED: Condition for 'myself'
+                if booking_for == "myself" and myself_booked_today >= 1:
+                    return Response({"success": False, "error": "You already made an appointment for myself today."}, status=status.HTTP_400_BAD_REQUEST)
 
                 if booking_for == "another" and another_booked_today >= 1:
                     return Response({"success": False, "error": "You already made an appointment for another person today."}, status=status.HTTP_400_BAD_REQUEST)
 
-             # Detect AI screening
-            is_ai_screening = request.data.get("is_ai_screening", False)
-            serializer.validated_data["is_ai_screening"] = bool(is_ai_screening)
+            # Detect AI screening
+            is_ai_screening = bool(is_ai_screening_data) # Use the value extracted earlier
+            serializer.validated_data["is_ai_screening"] = is_ai_screening
 
             # Save preliminary result if AI
             serializer.validated_data["preliminary_result"] = request.data.get("preliminary_result") if is_ai_screening else None
@@ -1013,6 +1021,7 @@ class CreateAppointmentAPIView(APIView):
             patient_age = serializer.validated_data.get("patient_age")
             doctor = None
             if patient_age is not None:
+                # Assuming Doctor model and is_pediatric field exists
                 doctor = Doctor.objects.filter(is_pediatric=True if patient_age < 18 else False).first()
                 if doctor:
                     serializer.validated_data["doctor"] = doctor
@@ -1020,16 +1029,20 @@ class CreateAppointmentAPIView(APIView):
             serializer.validated_data["status"] = "Pending"
             appt = serializer.save()
 
+            # The subsequent doctor assignment block is redundant, removing it:
             # ✅ Auto-assign doctor based on age
-            patient_age = serializer.validated_data.get("patient_age")
-            doctor = None
-            if patient_age is not None:
-                doctor = Doctor.objects.filter(is_pediatric=True if patient_age < 18 else False).first()
-                if doctor:
-                    serializer.validated_data["doctor"] = doctor
+            # patient_age = serializer.validated_data.get("patient_age")
+            # doctor = None
+            # if patient_age is not None:
+            #     doctor = Doctor.objects.filter(is_pediatric=True if patient_age < 18 else False).first()
+            #     if doctor:
+            #         serializer.validated_data["doctor"] = doctor
 
-            serializer.validated_data["status"] = "Pending"
-            appt = serializer.save()
+            # serializer.validated_data["status"] = "Pending"
+            # appt = serializer.save() # This save is not needed if the first save was successful
+
+            # Re-fetch the saved doctor object since we modified the validated_data earlier
+            doctor = appt.doctor
 
             local_dt = timezone.localtime(appt.appointment_datetime)
             formatted_date = local_dt.strftime("%B %d, %Y")
@@ -1062,9 +1075,9 @@ class CreateAppointmentAPIView(APIView):
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
+            # The original code had a redundant save block. If you encounter an error like
+            # 'Doctor' is not defined, ensure you import Doctor at the top of this file.
             return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 
         
 
