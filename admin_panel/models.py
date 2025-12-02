@@ -61,7 +61,6 @@ class Doctor(models.Model):
 
 
 # --- APPOINTMENT ---
-# --- APPOINTMENT ---
 class Appointment(models.Model):
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
@@ -73,12 +72,12 @@ class Appointment(models.Model):
     GENDER_CHOICES = (
         ('male', 'Male'),
         ('female', 'Female'),
+
     )
 
-    # 👇 CHANGED: 'yourself' to 'myself' and 'Another' to 'Another Person'
     BOOKING_FOR_CHOICES = (
-        ('myself', 'Myself'),
-        ('another person', 'Another Person'),
+        ('yourself', 'Yourself'),
+        ('another', 'Another'),
     )
 
     REASON_CHOICES = (
@@ -112,9 +111,7 @@ class Appointment(models.Model):
     patient_age = models.IntegerField(null=True, blank=True)
     patient_gender = models.CharField(max_length=10, choices=GENDER_CHOICES, default='other')
     reason = models.CharField(max_length=100, choices=REASON_CHOICES, null=True, blank=True)
-    
-    # 👇 CHANGED: Default is now 'myself'
-    booking_for = models.CharField(max_length=20, choices=BOOKING_FOR_CHOICES, default="myself")
+    booking_for = models.CharField(max_length=20, choices=BOOKING_FOR_CHOICES, default="yourself")
 
     # Scheduling info
     doctor = models.ForeignKey("Doctor", on_delete=models.CASCADE, null=True, blank=True)
@@ -122,7 +119,7 @@ class Appointment(models.Model):
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
     archive = models.BooleanField(default=False)
     is_ai_screening = models.BooleanField(default=True)
-    preliminary_result = models.TextField(blank=True, null=True) # 👈 Important
+    preliminary_result = models.TextField(blank=True, null=True)  # 👈 Important
 
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -134,10 +131,12 @@ class Appointment(models.Model):
             doc_name = "Unassigned Doctor"
         return f"Appointment with {doc_name} for {self.patient_first_name} {self.patient_last_name}"
     
-    # Track original status for signals
+   # Track original status for signals
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._original_status = self.status
+
+
 
 # --- DOCTOR AVAILABILITY ---
 class DoctorAvailability(models.Model):
