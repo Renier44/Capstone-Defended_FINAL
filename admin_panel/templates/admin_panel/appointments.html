@@ -252,7 +252,7 @@
       <table class="table">
         <thead>
           <tr>
-            <th>Booking For</th>
+            <th>Booking Details</th>
             <th>Last Name</th>
             <th>First Name</th>
             <th>Email</th>
@@ -276,7 +276,15 @@
         <tbody>
           {% for appt in items %}
             <tr>
-              <td>{{ appt.booking_for }}</td>
+              <td>
+              {% if appt.booking_for == "yourself" %}
+                Booking by {{ appt.booker.get_full_name|default:appt.booker.username }}
+              {% else %}
+                Booking by {{ appt.booker.get_full_name|default:appt.booker.username }}
+                for {{ appt.patient_first_name }} {{ appt.patient_last_name }}
+              {% endif %}
+            </td>
+
               <td>{{ appt.patient_last_name }}</td>
               <td>{{ appt.patient_first_name }}</td>
               <td>
