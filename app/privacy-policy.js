@@ -4,9 +4,10 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    SafeAreaView,
     ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -61,7 +62,7 @@ export default function PrivacyPolicy() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#77CDE0'
+        backgroundColor: '#fff'
     },
     header: {
         height: 56,
