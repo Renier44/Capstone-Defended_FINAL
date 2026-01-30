@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { 
-    View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, 
+    View, Text, StyleSheet, TouchableOpacity, ScrollView, 
     Switch, useColorScheme 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // =================================================================
 // --- THEME CONTEXT AND LOGIC (Required for global state) ---

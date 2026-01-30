@@ -5,7 +5,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { ImageContext } from './context/ImageContext'; // only ImageContext
+import { ImageContext } from '../context/ImageContext';
 
 export default function EyeScreening() {
     const router = useRouter();

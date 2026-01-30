@@ -9,16 +9,38 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
-  Alert
+  Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { Picker } from '@react-native-picker/picker';
+
+// Import your doctor images
+import dr1 from '../assets/images/dr1.jpg';
+import dr2 from '../assets/images/dr2.jpg';
+
+// Map doctor names to images
+const DOCTOR_IMAGE_MAP = {
+  'Dr. Mikaela Cherry Lopez': dr2,
+  'Dr. Maria Sherry Lopez': dr1,
+};
 
 export default function MyAppointmentsScreen() {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState("upcoming");
+  const [filter, setFilter] = useState('pending');
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [currentCancelId, setCurrentCancelId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+
+  const cancelOptions = [
+    'Not available on the date',
+    'Not Feeling better',
+    'Scheduling conflict',
+    'Other',
+  ];
 
   useEffect(() => {
     fetchAppointments();
@@ -31,30 +53,27 @@ export default function MyAppointmentsScreen() {
     try {
       const token = await getAuthToken();
       if (!token) {
-        Alert.alert("Error", "User not logged in");
+        Alert.alert('Error', 'User not logged in');
         setLoading(false);
         return;
       }
 
-      const API_URL = "https://2b7bf55b1e09.ngrok-free.app/api/my-appointments/";
+      const API_URL = 'https://capstone-defended-final.onrender.com/api/my-appointments/';
       const response = await fetch(API_URL, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Token ${token}`
-        },
+        headers: { Authorization: `Token ${token}` },
       });
 
-      if (response.status === 403) {
-        Alert.alert("Forbidden", "Please login again.");
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        setAppointments(data);
+      } catch {
+        console.error('Failed to parse JSON:', text);
+        Alert.alert('Error', 'Failed to fetch appointments. Check your server.');
         setAppointments([]);
-        return;
       }
-
-      const data = await response.json();
-      setAppointments(data);
     } catch (error) {
-      console.error("Error fetching appointments:", error);
+      console.error('Error fetching appointments:', error);
       setAppointments([]);
     } finally {
       setLoading(false);
@@ -67,192 +86,178 @@ export default function MyAppointmentsScreen() {
     fetchAppointments();
   }, []);
 
-  const cancelAppointment = async (id) => {
-    Alert.alert("Confirm", "Do you really want to cancel this appointment?", [
-      { text: "No" },
-      {
-        text: "Yes",
-        onPress: async () => {
-          try {
-            const token = await getAuthToken();
-            const API_URL = `https://2b7bf55b1e09.ngrok-free.app/api/cancel-appointment/${id}/`;
-            const res = await fetch(API_URL, {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Token ${token}`
-              },
-              body: JSON.stringify({ status: "Cancelled" })
-            });
+  const openCancelModal = (id) => {
+    setCurrentCancelId(id);
+    setCancelReason(cancelOptions[0]);
+    setCancelModalVisible(true);
+  };
 
-            if (res.ok) {
-              Alert.alert("Success", "Appointment cancelled.");
-              fetchAppointments();
-            } else {
-              Alert.alert("Error", "Failed to cancel appointment.");
-            }
-          } catch (err) {
-            console.error(err);
-            Alert.alert("Error", "Something went wrong.");
-          }
-        }
+  const submitCancel = async () => {
+    if (!cancelReason.trim()) {
+      Alert.alert('Error', 'Reason is required');
+      return;
+    }
+    try {
+      const token = await getAuthToken();
+      const API_URL = `https://capstone-defended-final.onrender.com/api/cancel-appointment/${currentCancelId}/`;
+      const res = await fetch(API_URL, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ status: 'Cancelled', cancel_reason: cancelReason }),
+      });
+
+      if (res.ok) {
+        Alert.alert('Success', 'Appointment cancelled successfully.');
+        fetchAppointments();
+      } else {
+        Alert.alert('Error', 'Failed to cancel appointment.');
       }
-    ]);
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Something went wrong.');
+    } finally {
+      setCancelModalVisible(false);
+      setCancelReason('');
+      setCurrentCancelId(null);
+    }
   };
 
   const deleteAppointment = async (id) => {
-    Alert.alert("Confirm", "Delete this appointment permanently?", [
-      { text: "No" },
+    Alert.alert('Confirm', 'Delete this appointment permanently?', [
+      { text: 'No' },
       {
-        text: "Yes",
+        text: 'Yes',
         onPress: async () => {
           try {
             const token = await getAuthToken();
-            const API_URL = `https://2b7bf55b1e09.ngrok-free.app/api/delete-appointment/${id}/`;
+            const API_URL = `https://capstone-defended-final.onrender.com/api/delete-appointment/${id}/`;
             const res = await fetch(API_URL, {
-              method: "DELETE",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Token ${token}`
-              }
+              method: 'DELETE',
+              headers: { Authorization: `Token ${token}` },
             });
 
             if (res.ok) {
-              Alert.alert("Deleted", "Appointment removed successfully.");
+              Alert.alert('Deleted', 'Appointment removed successfully.');
               fetchAppointments();
             } else {
-              Alert.alert("Error", "Failed to delete appointment.");
+              Alert.alert('Error', 'Failed to delete appointment.');
             }
           } catch (err) {
             console.error(err);
-            Alert.alert("Error", "Something went wrong.");
+            Alert.alert('Error', 'Something went wrong.');
           }
-        }
-      }
+        },
+      },
     ]);
   };
 
-  const editAppointment = (appointment) => {
-    router.push({
-      pathname: "/edit-appointment",
-      params: { appointmentId: appointment.id }
-    });
-  };
-
-  const filteredAppointments = appointments.filter(item => {
-    const status = item.status.toLowerCase();
-    const isUpcoming = ["scheduled", "confirmed", "pending"].includes(status);
-    const isPast = ["completed"].includes(status);
-    const isCancelled = ["cancelled"].includes(status);
-
-    if (filter === "upcoming") return isUpcoming;
-    if (filter === "past") return isPast;
-    if (filter === "cancelled") return isCancelled;
+  const filteredAppointments = appointments.filter((item) => {
+    const status = item.status?.toLowerCase() || '';
+    if (filter === 'pending') return status === 'pending';
+    if (filter === 'upcoming') return ['scheduled', 'confirmed'].includes(status);
+    if (filter === 'cancelled') return status === 'cancelled';
+    if (filter === 'past') return status === 'completed';
     return false;
   });
 
-  const renderAppointmentCard = (item) => (
-    <View style={styles.card}>
-      <Image
-        source={{
-          uri: `https://ui-avatars.com/api/?name=${item.doctor_name}&background=2260FF&color=fff&size=80&bold=true`,
-        }}
-        style={styles.avatar}
-      />
-      <View style={styles.info}>
-        <Text style={styles.name}>{item.doctor_name}</Text>
-        <Text style={styles.specialty}>Optometrist</Text>
+  const renderAppointmentCard = (item) => {
+    const doctorImage = DOCTOR_IMAGE_MAP[item.doctor_name] || {
+      uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(item.doctor_name || 'Doctor')}&background=2260FF&color=fff`,
+    };
 
+    const status = item.status?.toLowerCase() || '';
+    const isPending = ['pending', 'scheduled', 'confirmed'].includes(status);
+    const isCancelled = status === 'cancelled';
+    const isCompleted = status === 'completed';
+
+    return (
+      <View style={styles.card}>
+        {/* Doctor Image + Name */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+          <Image source={doctorImage} style={styles.avatar} />
+          <View style={{ marginLeft: 12 }}>
+            <Text style={styles.name}>{item.doctor_name}</Text>
+            <Text style={styles.specialty}>Optometrist</Text>
+          </View>
+        </View>
+
+        {/* Patient Info */}
         <Text style={styles.detailText}>👤 {item.firstName} {item.lastName}</Text>
         <Text style={styles.detailText}>🎂 {item.age} yrs | {item.gender}</Text>
         <Text style={styles.detailText}>📌 Booking For: {item.bookingFor}</Text>
-        <Text style={styles.detailText}>📝 Reason: {item.reason}</Text>
+
+        {item.preliminary_result ? (
+          <Text style={styles.detailText}>🧪 Preliminary Result: {item.preliminary_result}</Text>
+        ) : (
+          <Text style={styles.detailText}>📝 Reason: {item.reason}</Text>
+        )}
 
         <View style={styles.row}>
-          <Ionicons name="calendar-outline" size={16} color="#1E88E5" />
-          <Text style={styles.detailText}>{item.date}</Text>
+          <Ionicons name="calendar-outline" size={16} color="#2260FF" />
+          <Text style={styles.detailText}> {item.date}</Text>
         </View>
         <View style={styles.row}>
-          <Ionicons name="time-outline" size={16} color="#1E88E5" />
-          <Text style={styles.detailText}>{item.time}</Text>
+          <Ionicons name="time-outline" size={16} color="#2260FF" />
+          <Text style={styles.detailText}> {item.time}</Text>
         </View>
 
-        <View
-          style={[
-            styles.statusChip,
-            item.status === "cancelled"
-              ? { backgroundColor: "#FFCDD2" }
-              : item.status === "completed"
-              ? { backgroundColor: "#C8E6C9" }
-              : item.status === "confirmed" || item.status === "scheduled"
-              ? { backgroundColor: "#FFF9C4" }
-              : { backgroundColor: "#E1BEE7" },
-          ]}
-        >
-          <Text style={styles.statusText}>
-            {item.status.toUpperCase().replace("SCHEDULED", "PENDING")}
+        {isCancelled && item.cancel_reason && (
+          <Text style={[styles.detailText, { fontStyle: 'italic', color: '#E53935' }]}>
+            ❌ Cancel Reason: {item.cancel_reason}
           </Text>
-        </View>
+        )}
 
+        {/* Action Buttons */}
         <View style={styles.actions}>
-          {(item.status === "scheduled" ||
-            item.status === "pending" ||
-            item.status === "confirmed") && (
-            <TouchableOpacity
-              style={styles.btnCancel}
-              onPress={() => cancelAppointment(item.id)}
-            >
+          {isPending && (
+            <TouchableOpacity style={styles.btnCancel} onPress={() => openCancelModal(item.id)}>
               <Text style={styles.btnText}>Cancel</Text>
             </TouchableOpacity>
           )}
-          {(item.status === "scheduled" || item.status === "pending") && (
-            <TouchableOpacity
-              style={styles.btnEdit}
-              onPress={() => editAppointment(item)}
-            >
-              <Text style={styles.btnText}>Reschedule</Text>
-            </TouchableOpacity>
-          )}
-          {(item.status === "cancelled" || item.status === "completed") && (
-            <TouchableOpacity
-              style={styles.btnDelete}
-              onPress={() => deleteAppointment(item.id)}
-            >
+
+          {(isCancelled || isCompleted) && (
+            <TouchableOpacity style={styles.btnDelete} onPress={() => deleteAppointment(item.id)}>
               <Text style={styles.btnText}>Delete</Text>
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Pending Badge */}
+        {status === 'pending' && (
+          <View style={styles.pendingBadge}>
+            <Text style={styles.pendingText}>Pending</Text>
+          </View>
+        )}
       </View>
-    </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color="#2260FF" />
-        <Text style={{ marginTop: 10, color: "#2260FF", fontWeight: "600" }}>
-          Loading appointments...
-        </Text>
+        <Text style={{ color: '#2260FF', marginTop: 10 }}>Loading appointments...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#2260FF" />
+          <Ionicons name="arrow-back" size={26} color="#2260FF" />
         </TouchableOpacity>
         <Text style={styles.headerText}>My Appointments</Text>
       </View>
 
+      {/* Tabs */}
       <View style={styles.tabs}>
-        {["upcoming", "past", "cancelled"].map(t => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.tab, filter === t && styles.activeTab]}
-            onPress={() => setFilter(t)}
-          >
+        {['pending','upcoming','cancelled','past'].map((t) => (
+          <TouchableOpacity key={t} style={[styles.tab, filter === t && styles.activeTab]} onPress={() => setFilter(t)}>
             <Text style={[styles.tabText, filter === t && styles.activeTabText]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
@@ -260,78 +265,96 @@ export default function MyAppointmentsScreen() {
         ))}
       </View>
 
-      <FlatList
-        data={filteredAppointments}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => renderAppointmentCard(item)}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No {filter} appointments found</Text>
-        }
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={{ paddingBottom: 40 }}
-      />
+      {/* Appointment List */}
+      {filteredAppointments.length === 0 ? (
+        <Text style={styles.emptyText}>No {filter} appointments found.</Text>
+      ) : (
+        <FlatList
+          data={filteredAppointments}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => renderAppointmentCard(item)}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        />
+      )}
+
+      {/* Cancel Modal */}
+      <Modal visible={cancelModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Cancel Appointment</Text>
+            <Text style={styles.modalText}>Select a reason for cancelling:</Text>
+
+            <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 10, height: 50, justifyContent: 'center', marginBottom: 15 }}>
+              <Picker
+                selectedValue={cancelReason}
+                onValueChange={(value) => setCancelReason(value)}
+                mode="dropdown"
+              >
+                {cancelOptions.map((option) => (
+                  <Picker.Item key={option} label={option} value={option} />
+                ))}
+              </Picker>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#2260FF' }]} onPress={submitCancel}>
+                <Text style={styles.modalBtnText}>Submit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#757575' }]} onPress={() => setCancelModalVisible(false)}>
+                <Text style={styles.modalBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#77CDE0' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd"
+  container: { flex: 1, backgroundColor: '#D9ECFF' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 20, marginTop: 40 },
+  headerText: { flex: 1, textAlign: 'center', fontSize: 20, fontWeight: '700', color: '#2260FF' },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  tabs: { flexDirection: 'row', justifyContent: 'space-around', marginHorizontal: 16, marginBottom: 12 },
+  tab: { paddingVertical: 8, paddingHorizontal: 18, borderRadius: 20, backgroundColor: '#E8EAF6' },
+  activeTab: { backgroundColor: '#77CDE0' },
+  tabText: { fontSize: 14, color: '#555', fontWeight: '500' },
+  activeTabText: { color: '#fff', fontWeight: '700' },
+  card: { 
+    backgroundColor: '#fff', 
+    borderRadius: 16, 
+    marginHorizontal: 16, 
+    marginVertical: 10, 
+    padding: 16, 
+    flexDirection: 'column', 
+    alignItems: 'flex-start', 
+    shadowColor: '#000', 
+    shadowOpacity: 0.1, 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowRadius: 6, 
+    elevation: 2,
+    borderLeftWidth: 6, 
+    borderLeftColor: '#77CDE0',
+    paddingLeft: 10,
   },
-  headerText: { fontSize: 20, fontWeight: 'bold', marginLeft: 16, color: '#2260FF' },
-  loader: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#77CDE0" },
-  card: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F9FF',
-    margin: 12,
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'flex-start',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  avatar: { width: 70, height: 70, borderRadius: 35, marginRight: 14 },
-  info: { flex: 1 },
-  name: { fontSize: 18, fontWeight: 'bold', color: '#2260FF' },
-  specialty: { fontSize: 14, color: '#666', marginBottom: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  detailText: { marginTop: 2, marginLeft: 4, fontSize: 13, color: '#333' },
-  statusChip: {
-    marginTop: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    alignSelf: "flex-start"
-  },
-  statusText: { fontWeight: "bold", fontSize: 12, color: "#222" },
-  actions: { flexDirection: 'row', marginTop: 10, gap: 12 },
-  btnCancel: { backgroundColor: '#E53935', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  btnEdit: { backgroundColor: '#1E88E5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  btnDelete: { backgroundColor: '#757575', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  btnText: { color: '#fff', fontSize: 13, fontWeight: "600" },
-  emptyText: { textAlign: 'center', marginTop: 40, color: '#fff', fontSize: 16, fontWeight: '600' },
-  tabs: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#C8EAF7',
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginHorizontal: 16,
-    marginVertical: 10
-  },
-  tab: { paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20 },
-  activeTab: { backgroundColor: '#2260FF' },
-  tabText: { fontSize: 14, color: '#444' },
-  activeTabText: { color: '#fff', fontWeight: 'bold' }
+  avatar: { width: 55, height: 55, borderRadius: 30 },
+  name: { fontSize: 16, fontWeight: '700', color: '#2260FF' },
+  specialty: { fontSize: 13, color: '#333' },
+  detailText: { fontSize: 13, color: '#000', marginVertical: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
+  actions: { flexDirection: 'row', marginTop: 10, gap: 8 },
+  btnCancel: { backgroundColor: '#E53935', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 12 },
+  btnDelete: { backgroundColor: '#757575', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 12 },
+  btnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  pendingBadge: { marginTop: 10, alignSelf: 'flex-start', backgroundColor: '#FFB300', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 10 },
+  pendingText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  emptyText: { textAlign: 'center', marginTop: 40, color: '#2260FF', fontSize: 16, fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  modalBox: { width: '85%', backgroundColor: '#fff', borderRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12, color: '#2260FF' },
+  modalText: { fontSize: 14, marginBottom: 10 },
+  modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
+  modalBtn: { flex: 1, marginHorizontal: 5, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  modalBtnText: { color: '#fff', fontWeight: '600' },
 });

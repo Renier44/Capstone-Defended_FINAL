@@ -5,29 +5,95 @@ import {
     StyleSheet,
     TouchableOpacity,
     Image,
-    SafeAreaView,
     ActivityIndicator,
     Alert, 
     ScrollView,
+    Platform,
+    Modal // Import Modal component
 } from 'react-native';
-import { MaterialIcons, Feather, Entypo } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { MaterialIcons, Feather, Entypo, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
+import Constants from 'expo-constants';
+
+
+// =======================================================
+// 1. GLOBAL CONSTANTS
+// =======================================================
+const BRAND_BLUE = "#0057B7"; 
+const ATTENTION_COLOR = "#FF6B6B"; 
+const PRIMARY_ACTION_COLOR = "#FFD54F"; 
+const BACKGROUND_COLOR = "#E8F7FF"; 
+const NEUTRAL_TEXT = "#333333"; 
+const INFO_BORDER_COLOR = "#77CDE0"; 
+const CARD_BG = "#fff"; 
+const LOGOUT_TEXT = '#FF5A5A'; 
+
+
+// =======================================================
+// 2. MODAL COMPONENT (Updated with unified button styles)
+// =======================================================
+
+const LogoutModal = ({ isVisible, onClose, onConfirm }) => {
+    return (
+        <Modal
+            animationType="fade"
+            transparent={true}
+            visible={isVisible}
+            onRequestClose={onClose}
+        >
+            <View style={modalStyles.centeredView}>
+                <View style={modalStyles.modalView}>
+                    <Text style={modalStyles.modalTitle}>Logout</Text>
+                    <Text style={modalStyles.modalMessage}>are you sure you want to log out?</Text>
+                    
+                    <View style={modalStyles.buttonContainer}>
+                        {/* Cancel Button - Unified look with press effect */}
+                        <TouchableOpacity
+                            style={[modalStyles.button, modalStyles.buttonCancel]}
+                            onPress={onClose}
+                            activeOpacity={0.7} // Press effect
+                        >
+                            <Text style={modalStyles.textCancel}>Cancel</Text>
+                        </TouchableOpacity>
+
+                        {/* Yes, Logout Button - Unified look with press effect */}
+                        <TouchableOpacity
+                            style={[modalStyles.button, modalStyles.buttonConfirm]}
+                            onPress={onConfirm}
+                            activeOpacity={0.7} // Press effect
+                        >
+                            <Text style={modalStyles.textConfirm}>Yes, Logout</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+// =======================================================
+// 3. MAIN PROFILE COMPONENT
+// =======================================================
 
 export default function Profile() {
     const router = useRouter();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
 
     // Helper to normalize the user data structure
     const normalizeUser = (data) => ({
-        // Prioritize common keys, but ensure all data is preserved
         ...data,
         name: data.name || data.first_name || '',
         lastName: data.lastName || data.last_name || '',
         email: data.email || data.username || '',
         profile_image: data.profile_image || null,
+        first_name: data.first_name || data.name || '',
+        last_name: data.last_name || data.lastName || '',
     });
 
     // Function to load profile from storage
@@ -40,28 +106,26 @@ export default function Profile() {
                 const normalizedUser = normalizeUser(storedUser);
                 setUser(normalizedUser);
             } else {
-                // If no profile data exists, fall back to guest/placeholder
                 const token = await SecureStore.getItemAsync('userToken');
                 if (!token) {
                     router.replace('/login');
                     return;
                 }
-                setUser(normalizeUser({ name: 'Guest', email: 'guest@example.com' }));
+                setUser(normalizeUser({ first_name: 'Guest', last_name: 'User', email: 'guest@example.com' }));
             }
         } catch (error) {
             console.error('Failed to load user profile:', error);
-            setUser(normalizeUser({ name: 'Error Loading', email: 'error@example.com' }));
+            setUser(normalizeUser({ first_name: 'Error', last_name: 'Loading', email: 'error@example.com' }));
         } finally {
             setLoading(false);
         }
     };
 
-    // Load user on component mount
     useEffect(() => {
         loadUser();
     }, []);
 
-    // Function to handle image picking and profile update
+    // Function to handle image picking and profile update (Unchanged)
     const updateProfileImage = async () => {
         if (!user) {
             Alert.alert('Error', 'User data not loaded yet.');
@@ -84,18 +148,12 @@ export default function Profile() {
 
             if (!pickerResult.canceled) {
                 const newImageUri = pickerResult.assets[0].uri;
-
-                // 1. Update the local state with the new URI
                 const updatedUser = { 
-                    ...user, // CRITICAL: Spread the entire current user state
+                    ...user,
                     profile_image: newImageUri 
                 };
                 setUser(updatedUser);
-
-                // 2. Save the COMPLETE updated user object back to SecureStore
-                // This prevents other profile fields from being lost and ensures the image persists.
                 await SecureStore.setItemAsync('userProfile', JSON.stringify(updatedUser));
-                
                 Alert.alert('Success', 'Profile image updated and saved locally.');
             }
         } catch (error) {
@@ -104,45 +162,48 @@ export default function Profile() {
         }
     };
 
-    // LOGOUT HANDLER (Maintains persistence by ONLY deleting the auth token)
-    const handleLogout = async () => {
+    // FINAL LOGOUT LOGIC (Called by the modal)
+    const confirmLogout = async () => {
+        setIsLogoutModalVisible(false); // Close modal first
         await SecureStore.deleteItemAsync('userToken');
-        // DO NOT DELETE 'userProfile' here to keep the image path saved locally.
         router.replace('/login');
+    };
+
+    // OPEN MODAL HANDLER
+    const handleLogoutPress = () => {
+        setIsLogoutModalVisible(true);
     };
 
 
     if (loading) {
         return (
             <SafeAreaView style={[styles.container, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color="#005A9C" />
+                <ActivityIndicator size="large" color={BRAND_BLUE} />
             </SafeAreaView>
         );
     }
 
     if (!user) return null;
 
-    const displayName = `${user.first_name} ${user.lastName}`;
+    const displayName = `${user.first_name} ${user.last_name}`.trim() || 'User Profile';
+
 
     return (
         <SafeAreaView style={styles.container}>
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <TouchableOpacity
-                        onPress={() => {
-                            if (router.canGoBack()) router.back();
-                            else router.replace('/dashboard');
-                        }}
-                    >
-                        <MaterialIcons name="arrow-back-ios" size={24} color="#005A9C" />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>My Profile</Text>
-                    <View style={{ width: 24 }} />
-                </View>
+            
+            <View style={styles.fixedHeader}>
+                <TouchableOpacity style={styles.backButton} onPress={() => {
+                    if (router.canGoBack()) router.back();
+                    else router.replace('/dashboard');
+                }}>
+                    <Ionicons name="arrow-back" size={24} color={BRAND_BLUE} />
+                </TouchableOpacity>
+                <Text style={styles.pageTitleFixed}>My Profile</Text>
+            </View>
 
-                {/* Profile Section */}
-                <View style={styles.profileSection}>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+                
+                <View style={[styles.card, styles.profileSection]}>
                     <TouchableOpacity 
                         style={styles.profilePicWrapper} 
                         onPress={updateProfileImage}
@@ -164,139 +225,276 @@ export default function Profile() {
                         </TouchableOpacity>
                     </TouchableOpacity>
                     <Text style={styles.userName}>{displayName}</Text>
+                    <Text style={styles.userEmail}>{user.email}</Text>
                 </View>
 
-                {/* Menu Options */}
-                <View style={styles.menuContainer}>
+                <View style={[styles.card, styles.menuContainer]}>
                     <TouchableOpacity
                         style={styles.menuItem}
                         onPress={() => router.push('/edit-profile')}
                     >
-                        <MaterialIcons name="person-outline" size={24} color="#005A9C" />
+                        <MaterialIcons name="person-outline" size={24} color={BRAND_BLUE} />
                         <Text style={styles.menuText}>Edit Profile</Text>
-                        <Entypo name="chevron-right" size={22} color="#005A9C" />
+                        <Entypo name="chevron-right" size={22} color={NEUTRAL_TEXT} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.menuItem}
                         onPress={() => router.push('/privacy-policy')}
                     >
-                        <MaterialIcons name="lock-outline" size={24} color="#005A9C" />
+                        <MaterialIcons name="lock-outline" size={24} color={BRAND_BLUE} />
                         <Text style={styles.menuText}>Privacy Policy</Text>
-                        <Entypo name="chevron-right" size={22} color="#005A9C" />
+                        <Entypo name="chevron-right" size={22} color={NEUTRAL_TEXT} />
                     </TouchableOpacity>
 
+                    
+                    {/* Calls the handler to open the modal */}
                     <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={() => router.push('/settings')}
+                        style={[styles.menuItem, styles.logoutItem]}
+                        onPress={handleLogoutPress} 
                     >
-                        <MaterialIcons name="settings" size={24} color="#005A9C" />
-                        <Text style={styles.menuText}>Settings</Text>
-                        <Entypo name="chevron-right" size={22} color="#005A9C" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.menuItem}
-                        onPress={handleLogout}
-                    >
-                        <MaterialIcons name="logout" size={24} color="#FF5A5A" />
-                        <Text style={[styles.menuText, { color: '#FF5A5A' }]}>Logout</Text>
-                        <Entypo name="chevron-right" size={22} color="#FF5A5A" />
+                        <MaterialIcons name="logout" size={24} color={ATTENTION_COLOR} />
+                        <Text style={[styles.menuText, { color: LOGOUT_TEXT }]}>Logout</Text>
+                        <Entypo name="chevron-right" size={22} color={ATTENTION_COLOR} />
                     </TouchableOpacity>
                 </View>
+                
+                <Text style={styles.versionText}>App Version 1.0.0</Text>
+
             </ScrollView>
+
+            {/* MODAL RENDERED HERE */}
+            <LogoutModal
+                isVisible={isLogoutModalVisible}
+                onClose={() => setIsLogoutModalVisible(false)}
+                onConfirm={confirmLogout}
+            />
+
         </SafeAreaView>
     );
 }
 
+// =======================================================
+// 4. STYLES DEFINITIONS
+// =======================================================
+
+const CARD_ELEVATION = {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 3,
+};
+
 const styles = StyleSheet.create({
+    // --- Overall Layout ---
     container: {
         flex: 1,
-        backgroundColor: '#77CDE0',
+        backgroundColor: BACKGROUND_COLOR, 
     },
     loadingContainer: {
         justifyContent: 'center',
         alignItems: 'center',
     },
     scrollContent: {
-        paddingVertical: 20,
+        padding: 20,
+        paddingTop: 0, 
     },
-    header: {
+
+    // --- Fixed Header ---
+    fixedHeader: {
+        height: Platform.OS === 'android' ? Constants.statusBarHeight + 50 : 60, 
+        width: '100%',
+        paddingHorizontal: 20,
+        paddingBottom: 5, 
+        backgroundColor: 'transparent', 
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
+        justifyContent: 'center', 
     },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#005A9C',
+    pageTitleFixed: {
+        fontSize: 25, 
+        fontFamily: "Montserrat-VariableFont_wght",
+        fontWeight: "800",
+        color: BRAND_BLUE, 
+        textAlign: "center",
+        flex: 1, 
+        marginTop:30,
     },
+    backButton: {
+        position: "absolute",
+        // UPDATED: Decreased the value by 5 to move it up.
+        top: Platform.OS === 'android' ? Constants.statusBarHeight + 5 : 5, 
+        left: 20,
+        zIndex: 10,
+        padding: 10,
+        backgroundColor: "#fff",
+        borderRadius: 50, 
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
+        elevation: 5,
+        
+    },
+    
+    // --- Card Base Style ---
+    card: {
+        width: "100%", 
+        backgroundColor: CARD_BG,
+        borderRadius: 15,
+        ...CARD_ELEVATION,
+        marginBottom: 20,
+        borderLeftWidth: 5,
+        borderLeftColor: INFO_BORDER_COLOR, 
+    },
+
+    // --- Profile Section ---
     profileSection: {
         alignItems: 'center',
-        marginVertical: 40,
-        padding: 30,
-        marginHorizontal: 20,
-        backgroundColor: '#C8EAF7',
-        borderRadius: 25,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 10,
+        paddingVertical: 30,
+        paddingHorizontal: 20,
+        backgroundColor: CARD_BG, 
+        marginTop: 35,
+        paddingLeft: 25, 
     },
     profilePicWrapper: {
         position: 'relative',
-        marginBottom: 20,
+        marginBottom: 15,
     },
     profilePic: {
-        width: 150,
-        height: 150,
-        borderRadius: 75,
-        backgroundColor: '#C8EAF7',
+        width: 120, 
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: BACKGROUND_COLOR, 
         borderWidth: 4,
-        borderColor: '#77CDE0',
+        borderColor: INFO_BORDER_COLOR, 
     },
     editIconWrapper: {
         position: 'absolute',
-        bottom: 5,
-        right: 5,
-        backgroundColor: '#005A9C',
+        bottom: 0,
+        right: 0,
+        backgroundColor: PRIMARY_ACTION_COLOR, 
         borderRadius: 20,
         padding: 8,
         borderWidth: 2,
-        borderColor: '#fff',
+        borderColor: CARD_BG, 
+        ...CARD_ELEVATION,
     },
     userName: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#333',
-        textAlign: 'center',
+        fontSize: 26,
+        fontWeight: '900',
+        color: NEUTRAL_TEXT,
+        fontFamily: "Montserrat-VariableFont_wght",
+        marginBottom: 4,
     },
+    userEmail: {
+        fontSize: 16,
+        color: '#666',
+        fontFamily: "VarelaRound-Regular",
+    },
+
+    // --- Menu Options ---
     menuContainer: {
-        marginHorizontal: 20,
-        backgroundColor: '#C8EAF7',
-        borderRadius: 25,
         paddingVertical: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 10,
+        paddingLeft: 20, 
     },
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 18,
-        paddingHorizontal: 25,
-        borderBottomColor: '#F5F5F5',
+        paddingVertical: 15,
+        paddingHorizontal: 5, 
+        borderBottomColor: BACKGROUND_COLOR, 
         borderBottomWidth: 1,
+    },
+    logoutItem: {
+        borderBottomWidth: 0, 
     },
     menuText: {
         flex: 1,
         marginLeft: 15,
-        fontSize: 18,
-        color: '#333',
+        fontSize: 16,
+        color: NEUTRAL_TEXT,
+        fontFamily: "VarelaRound-Regular",
+    },
+    
+    // --- Footer ---
+    versionText: {
+        fontSize: 12,
+        color: '#999',
+        textAlign: 'center',
+        marginTop: 30,
+        fontFamily: "VarelaRound-Regular",
+    }
+});
+
+
+// =======================================================
+// 5. MODAL STYLES (Updated for unified button look)
+// =======================================================
+
+const modalStyles = StyleSheet.create({
+    centeredView: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    },
+    modalView: {
+        margin: 20,
+        backgroundColor: CARD_BG,
+        borderRadius: 20,
+        padding: 35,
+        alignItems: 'center',
+        width: '80%',
+        ...CARD_ELEVATION,
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: BRAND_BLUE,
+        marginBottom: 10,
+        fontFamily: "Montserrat-VariableFont_wght",
+    },
+    modalMessage: {
+        marginBottom: 20,
+        textAlign: 'center',
+        fontSize: 15,
+        color: NEUTRAL_TEXT,
+        fontFamily: "VarelaRound-Regular",
+    },
+    buttonContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+    },
+    button: {
+        borderRadius: 12,
+        padding: 12,
+        width: '48%',
+        alignItems: 'center',
+        ...CARD_ELEVATION,
+        elevation: 2,
+        backgroundColor: PRIMARY_ACTION_COLOR, // Unified background color
+    },
+    // Left button: Cancel (Text color only)
+    buttonCancel: {
+        // Inherits background from `button`
+    },
+    textCancel: {
+        color: BRAND_BLUE, 
+        fontWeight: '600',
+        fontSize: 15,
+        fontFamily: "Montserrat-VariableFont_wght",
+    },
+    // Right button: Yes, Logout (Text color only)
+    buttonConfirm: {
+        // Inherits background from `button`
+    },
+    textConfirm: {
+        color: BRAND_BLUE, // Unified text color for contrast
+        fontWeight: '600',
+        fontSize: 15,
+        fontFamily: "Montserrat-VariableFont_wght",
     },
 });

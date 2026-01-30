@@ -114,7 +114,7 @@ export default function NotificationSettings() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#77CDE0'
+        backgroundColor: '#fff'
     },
     header: {
         height: 56,

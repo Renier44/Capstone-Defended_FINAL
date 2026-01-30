@@ -4,7 +4,6 @@ import { FontAwesome, FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector
 import { useRouter, useFocusEffect } from 'expo-router';
 import {
     Image,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -12,62 +11,70 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Local images (These should be dynamic in a real app but are fine for a demo)
-// Assuming these are loaded correctly via your asset bundler setup
-import clinic1Image from '../assets/images/clinic1.jpg';
-import clinic2Image from '../assets/images/clinic2.jpg';
-import clinic3Image from '../assets/images/clinic3.jpg';
-import clinic4Image from '../assets/images/clinic4.jpg';
-import clinic5Image from '../assets/images/clinic5.jpg';
-import clinic6Image from '../assets/images/clinic6.jpg';
+
+// Local images
+import clinic1Image from '../assets/images/Enhance Vision Glasses.jpg';
+import clinic2Image from '../assets/images/Enhance Vision Available  Glasses.jpg';
+import clinic3Image from '../assets/images/Vision Training Room.jpg';
+import clinic4Image from '../assets/images/Enhance Vision Machine.jpg';
+import clinic5Image from '../assets/images/Enhance Vision Optical Clinic.jpg';
+import clinic6Image from '../assets/images/Enhance Vision Clinic.jpg';
 import dr1Image from '../assets/images/dr1.jpg';
 import dr2Image from '../assets/images/dr2.jpg';
 
 export default function DashboardScreen() {
     const router = useRouter();
 
-    const [userData, setUserData] = useState({ name: '', email: '', profile_image: null });
+    const [userData, setUserData] = useState({
+        first_name: '',
+        last_name: '',
+        email: '',
+        profile_image: null,
+    });
 
-    // Function to load the profile data from SecureStore, wrapped in useCallback
+    // Example: unread notifications count
+    const [unreadCount, setUnreadCount] = useState(1); // Replace with actual fetch from API
+
+    // Load user profile from SecureStore
     const loadLocalUserProfile = useCallback(async () => {
         try {
-            // Retrieve the complete userProfile data saved by the login or profile screen
             const localProfileStr = await SecureStore.getItemAsync('userProfile');
             if (localProfileStr) {
                 const localProfile = JSON.parse(localProfileStr);
-                
-                // Load the image URI directly from the locally stored profile data
+
                 setUserData({
-                    name: localProfile.name || 'Guest',
+                    first_name: localProfile.first_name || 'Guest',
+                    last_name: localProfile.last_name || '',
                     email: localProfile.email || '',
-                    // This line trusts the value stored in SecureStore
-                    profile_image: localProfile.profile_image || null, 
+                    profile_image: localProfile.profile_image ?? null
+
                 });
             } else {
-                // If profile data is missing, check if the user is truly logged out
                 const token = await SecureStore.getItemAsync('userToken');
                 if (!token) {
                     router.replace('/login');
                 } else {
-                    // Profile data missing but token exists (set to default)
-                    setUserData({ name: 'Guest', email: '', profile_image: null });
+                    setUserData({
+                        first_name: 'Guest',
+                        last_name: '',
+                        email: '',
+                        profile_image: null,
+                    });
                 }
             }
         } catch (error) {
             console.warn('Failed to load local user profile:', error);
             const token = await SecureStore.getItemAsync('userToken');
-            if (!token) {
-                router.replace('/login');
-            }
+            if (!token) router.replace('/login');
         }
     }, [router]);
 
-    // useFocusEffect is CRITICAL: it ensures data is reloaded whenever the screen is visible.
     useFocusEffect(
         useCallback(() => {
             loadLocalUserProfile();
-            return () => {}; 
+            return () => {};
         }, [loadLocalUserProfile])
     );
 
@@ -75,10 +82,10 @@ export default function DashboardScreen() {
     const handleDoctorsPress = () => router.push('/doctors');
     const handleProfilePress = () => router.push('/profile');
     const handleAppointmentsPress = () => router.push('/my-appointments');
-    
-    // Function to handle navigation to the notifications screen
-    const handleNotificationsPress = () => router.push('/notification');
-    
+    const handleNotificationsPress = () => {
+        router.push('/notification');
+        setUnreadCount(0); // Clear badge when user opens notifications
+    };
     const handleBackPress = () => router.replace('/');
 
     return (
@@ -93,30 +100,40 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
 
                     <View style={styles.userInfo}>
-                        {/* PROFILE IMAGE DISPLAY - This image source is updated on focus */}
+                        {/* PROFILE IMAGE */}
                         <Image
                             source={{
-                                uri:
-                                    // Use the stored URI if it exists
-                                    userData.profile_image
-                                        ? userData.profile_image
-                                        : 'https://cdn-icons-png.flaticon.com/512/706/706830.png',
+                                uri: userData.profile_image
+                                    ? userData.profile_image
+                                    : 'https://cdn-icons-png.flaticon.com/512/706/706830.png',
                             }}
                             style={styles.profilePic}
                         />
                         <View style={styles.userNameRow}>
                             <View>
-                                <Text style={styles.greetingText}>Hi, Welcome Back</Text>
-                                <Text style={styles.userName}>{userData.name || 'Guest'}</Text>
+                                <Text style={styles.greetingText}>Hi, Welcome to SmartSight</Text>
+                                <Text style={styles.userName}>
+                                    {userData.first_name} {userData.last_name}
+                                </Text>
                             </View>
 
                             <View style={styles.headerIcons}>
-                                {/* Notifications Icon (In Header) */}
                                 <TouchableOpacity style={styles.iconButton} onPress={handleNotificationsPress}>
-                                    <MaterialIcons name="notifications" size={24} color="#555" />
+                                    <View style={{ position: 'relative' }}>
+                                        <MaterialIcons
+                                            name="notifications"
+                                            size={24}
+                                            color={unreadCount > 0 ? '#77CDE0' : '#555'}
+                                        />
+                                        {unreadCount > 0 && (
+                                            <View style={styles.badge}>
+                                                <Text style={styles.badgeText}>{unreadCount}</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.iconButton}>
-                                    <Ionicons name="settings" size={24} color="#555" />
+                                    <Ionicons name="" size={24} color="#555" />
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -133,14 +150,13 @@ export default function DashboardScreen() {
                     <Text style={styles.sectionTitle}>Services</Text>
                 </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceList}>
-                    {/* Preliminary Eye Screening button with correct onPress function */}
                     <TouchableOpacity style={styles.serviceItem} onPress={() => router.push('/eye-screening')}>
                         <View style={[styles.serviceIconContainer, { backgroundColor: '#FF8888' }]}>
                             <FontAwesome name="eye" size={30} color="#fff" />
                         </View>
                         <Text style={styles.serviceText}>Preliminary Eye Screening</Text>
                     </TouchableOpacity>
-                    {/* Book Appointment Only button with correct onPress function */}
+
                     <TouchableOpacity style={styles.serviceItem} onPress={handleBookAppointment}>
                         <View style={[styles.serviceIconContainer, { backgroundColor: '#77CDE0' }]}>
                             <FontAwesome5 name="calendar-check" size={30} color="#fff" />
@@ -184,40 +200,51 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     </View>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.clinicList}>
-                        {[clinic1Image, clinic2Image, clinic3Image, clinic4Image, clinic5Image, clinic6Image].map((img, index) => (
-                            <TouchableOpacity key={index} style={styles.aestheticClinicCard}>
-                                <Image source={img} style={styles.aestheticClinicImage} />
-                                <View style={styles.cardContent}>
-                                    <Text style={styles.aestheticClinicName}>Clinic {index + 1}</Text>
-                                    <Text style={styles.clinicLocation}>Cagayan de Oro City</Text>
-                                </View>
-                            </TouchableOpacity>
-                        ))}
+                        {[clinic1Image, clinic2Image, clinic3Image, clinic4Image, clinic5Image, clinic6Image].map(
+                            (img, index) => (
+                                <TouchableOpacity key={index} style={styles.aestheticClinicCard}>
+                                    <Image source={img} style={styles.aestheticClinicImage} />
+                                    <View style={styles.cardContent}>
+                                        <Text style={styles.aestheticClinicName}>Clinic {index + 1}</Text>
+                                        <Text style={styles.clinicLocation}>Cagayan de Oro City</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            )
+                        )}
                     </ScrollView>
                 </View>
             </ScrollView>
 
-            {/* Bottom Nav - UPDATED ORDER: Home, Appointments, Notifications, Profile */}
+            {/* Bottom Navigation */}
             <View style={styles.bottomNavigation}>
-                {/* 1. HOME (Active) */}
                 <TouchableOpacity style={styles.navItem}>
-                    <MaterialIcons name="home" size={24} color="#65A3D5" />
-                    <Text style={[styles.navText, { color: '#65A3D5' }]}>Home</Text>
+                    <MaterialIcons name="home" size={24} color="#77CDE0" />
+                    <Text style={[styles.navText, { color: '#77CDE0' }]}>Home</Text>
                 </TouchableOpacity>
-                
-                {/* 2. APPOINTMENTS (Non-active color #888) */}
+
                 <TouchableOpacity style={styles.navItem} onPress={handleAppointmentsPress}>
                     <MaterialIcons name="event-note" size={24} color="#888" />
                     <Text style={styles.navText}>Appointments</Text>
                 </TouchableOpacity>
 
-                {/* 3. NOTIFICATIONS (Replaced History, Non-active color #888) */}
                 <TouchableOpacity style={styles.navItem} onPress={handleNotificationsPress}>
-                    <MaterialIcons name="notifications" size={24} color="#888" />
-                    <Text style={styles.navText}>Notifications</Text>
+                    <View style={{ position: 'relative' }}>
+                        <MaterialIcons
+                            name="notifications"
+                            size={24}
+                            color={unreadCount > 0 ? '#77CDE0' : '#888'}
+                        />
+                        {unreadCount > 0 && (
+                            <View style={styles.badge}>
+                                <Text style={styles.badgeText}>{unreadCount}</Text>
+                            </View>
+                        )}
+                    </View>
+                    <Text style={[styles.navText, { color: unreadCount > 0 ? '#77CDE0' : '#888' }]}>
+                        Notifications
+                    </Text>
                 </TouchableOpacity>
-                
-                {/* 4. PROFILE (Non-active color #888) */}
+
                 <TouchableOpacity style={styles.navItem} onPress={handleProfilePress}>
                     <MaterialIcons name="person" size={24} color="#888" />
                     <Text style={styles.navText}>Profile</Text>
@@ -228,7 +255,7 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#C8EAF7' },
+    container: { flex: 1, backgroundColor: '#E8F7FF' }, // Changed background
     scrollViewContent: { padding: 20, paddingBottom: 100 },
 
     circleBackButton: {
@@ -249,7 +276,7 @@ const styles = StyleSheet.create({
         borderRadius: 40,
         marginRight: 12,
         borderWidth: 3,
-        borderColor: '#65A3D5',
+        borderColor: '#65A3D5', // same as previous
     },
 
     greetingText: { fontSize: 14, color: '#555' },
@@ -274,14 +301,10 @@ const styles = StyleSheet.create({
         marginBottom: 15,
     },
     sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-    seeAllText: { fontSize: 14, color: '#65A3D5' },
+    seeAllText: { fontSize: 14, color: '#1E3A8A', fontWeight: 'bold' },
 
     serviceList: { marginBottom: 20 },
-    serviceItem: {
-        alignItems: 'center',
-        width: 120,
-        marginRight: 15,
-    },
+    serviceItem: { alignItems: 'center', width: 120, marginRight: 15 },
     serviceIconContainer: {
         width: 60,
         height: 60,
@@ -297,13 +320,11 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
 
-    doctorList: {
-        marginBottom: 20,
-    },
+    doctorList: { marginBottom: 20 },
     doctorCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#77CDE0',
+        backgroundColor: '#77CDE0', // updated background color
         borderRadius: 15,
         padding: 15,
         marginBottom: 10,
@@ -321,35 +342,14 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#fff',
     },
-    doctorInfo: {
-        flex: 1,
-    },
-    doctorName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    doctorAvailability: {
-        fontSize: 12,
-        color: '#fff',
-    },
-    doctorSpecialty: {
-        fontSize: 14,
-        color: '#fff',
-    },
+    doctorInfo: { flex: 1 },
+    doctorName: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+    doctorAvailability: { fontSize: 12, color: '#fff' },
+    doctorSpecialty: { fontSize: 14, color: '#fff' },
 
-    // Aesthetic Clinics Overview Styles
-    clinicsOverviewContainer: {
-        marginBottom: 20,
-    },
-    clinicsTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    clinicList: {
-        marginTop: 10,
-    },
+    clinicsOverviewContainer: { marginBottom: 20 },
+    clinicsTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+    clinicList: { marginTop: 10 },
     aestheticClinicCard: {
         width: 250,
         borderRadius: 20,
@@ -367,27 +367,17 @@ const styles = StyleSheet.create({
         height: 150,
         resizeMode: 'cover',
     },
-    cardContent: {
-        padding: 15,
-    },
-    aestheticClinicName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    clinicLocation: {
-        fontSize: 12,
-        color: '#888',
-        marginTop: 5,
-    },
+    cardContent: { padding: 15 },
+    aestheticClinicName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+    clinicLocation: { fontSize: 12, color: '#888', marginTop: 5 },
 
     bottomNavigation: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
-        backgroundColor: '#77CDE0', // Reverted to original light blue
+        backgroundColor: '#C8EAF7',
         borderTopWidth: 1,
-        borderTopColor: '#77CDE0',
+        borderTopColor: '#FFFF0',
         paddingVertical: 10,
         paddingHorizontal: 5,
         position: 'absolute',
@@ -398,8 +388,27 @@ const styles = StyleSheet.create({
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.1,
-        shadowRadius: 4
+        shadowRadius: 4,
     },
     navItem: { alignItems: 'center', padding: 5 },
-    navText: { fontSize: 10, color: '#fff', marginTop: 3 }, // Original default text color
+    navText: { fontSize: 10, color: '#fff', marginTop: 3 },
+
+    // Badge
+    badge: {
+        position: 'absolute',
+        top: -5,
+        right: -10,
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#77CDE0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 3,
+    },
+    badgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
 });
